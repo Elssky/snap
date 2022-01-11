@@ -125,9 +125,11 @@ int GetMaxFlowIntEK (PNEANet &Net, const int &SrcNId, const int &SnkNId) {
       const TNEANet::TEdgeI &EI = Net->GetEI(NextEId);
       if (EI.GetSrcNId() == CurNId) {
         Flow[NextEId] += MinAug;
+        //printf("%d\n", Flow[NextEId]);
         CurNId = EI.GetDstNId();
       } else {
         Flow[NextEId] -= MinAug;
+        //printf("%d\n", Flow[NextEId]);
         CurNId = EI.GetSrcNId();
       }
     }
@@ -146,6 +148,58 @@ int GetMaxFlowIntEK (PNEANet &Net, const int &SrcNId, const int &SnkNId) {
   return MaxFlow;
 }
 
+int MyGetMaxFlowIntEK(PNEANet& Net, const int& SrcNId, const int& SnkNId, TIntV& Res) {
+    IAssert(Net->IsNode(SrcNId));
+    IAssert(Net->IsNode(SnkNId));
+    if (SrcNId == SnkNId) { return 0; }
+    int CapIndex = Net->GetIntAttrIndE(CapAttrName);
+    TIntV Flow(Net->GetMxEId());
+    // Initialize flow values to 0, and make sure capacities are nonnegative
+    for (TNEANet::TEdgeI EI = Net->BegEI(); EI != Net->EndEI(); EI++) {
+        IAssert(Net->GetIntAttrIndDatE(EI, CapIndex) >= 0);
+        Flow[EI.GetId()] = 0;
+    }
+    // Return 0 if user attempts to flow from a node to itself.
+    if (SrcNId == SnkNId) { return 0; }
+    int MaxFlow = 0, MinAug, CurNId;
+    while (true) {
+        TIntV MidToSrcAugV; TIntV MidToSnkAugV;
+        TIntQ FwdNodeQ; TIntQ BwdNodeQ;
+        TIntH PredEdgeH; TIntH SuccEdgeH;
+        MinAug = FindAugV(Net, CapIndex, Flow, FwdNodeQ, PredEdgeH, BwdNodeQ, SuccEdgeH, MidToSrcAugV, MidToSnkAugV, SrcNId, SnkNId);
+        if (MinAug == 0) { break; }
+        MaxFlow += MinAug;
+        CurNId = SrcNId;
+        for (int i = MidToSrcAugV.Len() - 1; i >= 0; i--) {
+            int NextEId = MidToSrcAugV[i];
+            const TNEANet::TEdgeI& EI = Net->GetEI(NextEId);
+            if (EI.GetSrcNId() == CurNId) {
+                Flow[NextEId] += MinAug;
+                //printf("%d\n", Flow[NextEId]);
+                CurNId = EI.GetDstNId();
+            }
+            else {
+                Flow[NextEId] -= MinAug;
+                //printf("%d\n", Flow[NextEId]);
+                CurNId = EI.GetSrcNId();
+            }
+        }
+        for (int i = 0; i < MidToSnkAugV.Len(); i++) {
+            int NextEId = MidToSnkAugV[i];
+            const TNEANet::TEdgeI& EI = Net->GetEI(NextEId);
+            if (EI.GetSrcNId() == CurNId) {
+                Flow[NextEId] += MinAug;
+                CurNId = EI.GetDstNId();
+            }
+            else {
+                Flow[NextEId] -= MinAug;
+                CurNId = EI.GetSrcNId();
+            }
+        }
+    }
+    Res = Flow;
+    return MaxFlow;
+}
 //#///////////////////////////////////////////////
 /// Push relabel attr manager. ##PR_Manager
 class TPRManager {
