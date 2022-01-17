@@ -2,7 +2,11 @@
 // Connected Components
 class TCnCom;
 typedef TVec<TCnCom> TCnComV;
-
+class MyTCnCom : public TCnCom {
+public:
+    int g_deposit;
+};
+typedef TVec<MyTCnCom> MyTCnComV;
 namespace TSnap {
 
 /// Returns (via output parameter CnCom) all nodes that are in the same connected component as node NId.
@@ -396,6 +400,14 @@ void GetSccs(const PGraph& Graph, TCnComV& CnComV) {
   TCnCom::GetDfsVisitor(Graph, Visitor);
   CnComV = Visitor.CnComV;
   CnComV.Sort(false);
+}
+
+template <class PGraph>
+void GetSccs(const PGraph& Graph, MyTCnComV& CnComV) {
+    TSccVisitor<PGraph, false> Visitor(Graph);
+    MyTCnCom::GetDfsVisitor(Graph, Visitor);
+    CnComV = Visitor.CnComV;
+    CnComV.Sort(false);
 }
 
 template <class PGraph> 
