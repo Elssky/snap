@@ -1,12 +1,12 @@
 /////////////////////////////////////////////////
 // Connected Components
 class TCnCom;
+class MyTCnCom;
 typedef TVec<TCnCom> TCnComV;
-class MyTCnCom : public TCnCom {
-public:
-    int g_deposit;
-};
 typedef TVec<MyTCnCom> MyTCnComV;
+
+
+
 namespace TSnap {
 
 /// Returns (via output parameter CnCom) all nodes that are in the same connected component as node NId.
@@ -90,6 +90,14 @@ public:
   int GetSecHashCd() const { return NIdV.GetSecHashCd(); }
 };
 
+class MyTCnCom : public TCnCom {
+public:
+    int g_deposit;
+    int processed = 0;
+    //template <class PGraph, class TVisitor>
+    //static void GetDfsVisitor(const PGraph& Graph, TVisitor& Visitor);
+};
+
 template <class PGraph, class TVisitor>
 void TCnCom::GetDfsVisitor(const PGraph& Graph, TVisitor& Visitor) {
   const int Nodes = Graph->GetNodes();
@@ -133,6 +141,7 @@ void TCnCom::GetDfsVisitor(const PGraph& Graph, TVisitor& Visitor) {
     }
   }
 }
+
 
 //#//////////////////////////////////////////////
 /// Articulation point Depth-First-Search visitor class.
@@ -237,6 +246,53 @@ public:
   void FwdEdge(const int& NId1, const int& NId2) { }
   int GetMinDiscTm(const int& NId1, const int& NId2) const {
     return abs(TmRtH.GetDat(NId1).Val1) < abs(TmRtH.GetDat(NId2).Val1) ? NId1 : NId2; }
+};
+
+template <class PGraph, bool OnlyCount = false>
+class MyTSccVisitor {
+public:
+    PGraph Graph;
+    THash<TInt, TIntPr> TmRtH;
+    TSStack<TInt> Stack;
+    TInt Time;
+    TIntH SccCntH;
+    MyTCnComV CnComV;
+public:
+    MyTSccVisitor(const PGraph& _Graph) :
+        Graph(_Graph), TmRtH(Graph->GetNodes()), Stack(Graph->GetNodes()) { }
+    void DiscoverNode(int NId) {
+        Time++; TmRtH.AddDat(NId, TIntPr(-Time, NId)); // negative time -- node not yet in any SCC
+        Stack.Push(NId);
+    }
+    void FinishNode(const int& NId) {
+        typename PGraph::TObj::TNodeI NI = Graph->GetNI(NId);
+        TIntPr& TmRtN = TmRtH.GetDat(NId);
+        int W = -1, Cnt = 0;
+        for (int i = 0; i < NI.GetOutDeg(); i++) {
+            W = NI.GetOutNId(i);
+            const TIntPr& TmRtW = TmRtH.GetDat(W);
+            if (TmRtW.Val1 < 0) { // node not yet in any SCC
+                TmRtN.Val2 = GetMinDiscTm(TmRtN.Val2, TmRtW.Val2);
+            }
+        }
+        if (TmRtN.Val2 == NId) {
+            if (!OnlyCount) { CnComV.Add(); }
+            do {
+                W = Stack.Top();  Stack.Pop();
+                if (OnlyCount) { Cnt++; }
+                else { CnComV.Last().Add(W); }
+                TmRtH.GetDat(W).Val1 = abs(TmRtH.GetDat(W).Val1); // node is in SCC
+            } while (W != NId);
+            if (OnlyCount) { SccCntH.AddDat(Cnt) += 1; }
+        }
+    }
+    void ExamineEdge(const int& NId1, const int& NId2) { }
+    void TreeEdge(const int& NId1, const int& NId2) { }
+    void BackEdge(const int& NId1, const int& NId2) { }
+    void FwdEdge(const int& NId1, const int& NId2) { }
+    int GetMinDiscTm(const int& NId1, const int& NId2) const {
+        return abs(TmRtH.GetDat(NId1).Val1) < abs(TmRtH.GetDat(NId2).Val1) ? NId1 : NId2;
+    }
 };
 
 //#//////////////////////////////////////////////
@@ -404,7 +460,7 @@ void GetSccs(const PGraph& Graph, TCnComV& CnComV) {
 
 template <class PGraph>
 void GetSccs(const PGraph& Graph, MyTCnComV& CnComV) {
-    TSccVisitor<PGraph, false> Visitor(Graph);
+    MyTSccVisitor<PGraph, false> Visitor(Graph);
     MyTCnCom::GetDfsVisitor(Graph, Visitor);
     CnComV = Visitor.CnComV;
     CnComV.Sort(false);
